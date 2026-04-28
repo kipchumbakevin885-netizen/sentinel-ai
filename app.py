@@ -1,96 +1,63 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import os
 import matplotlib.pyplot as plt
+import numpy as np
 
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
-from xgboost import XGBClassifier
+st.set_page_config(
+    page_title="CORE X: HYPERVISOR",
+    page_icon="🛡️",
+    layout="wide"
+)
 
-st.set_page_config(page_title="Sentinel AI", layout="wide")
-
-st.title("🛡️ Sentinel AI - Malware Detection")
-
-MODEL_FILE = "malware_model.pkl"
-DATA_FILE = "Android_Malware.csv"
-
-# ----------------------------
-# TRAIN MODEL IF NOT EXISTS
-# ----------------------------
-if not os.path.exists(MODEL_FILE):
-
-    st.warning("⚙️ Training model... please wait")
-
-    df = pd.read_csv(DATA_FILE)
-
-    X = df.drop('Result', axis=1)
-    y = df['Result']
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    selector = SelectKBest(chi2, k=20)
-    X_train_sel = selector.fit_transform(X_train, y_train)
-    X_test_sel = selector.transform(X_test)
-
-    models = {
-        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1),
-        'XGBoost': XGBClassifier(n_estimators=100, random_state=42, eval_metric='logloss', verbosity=0),
-        'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42),
-        'Decision Tree': DecisionTreeClassifier(max_depth=10, random_state=42),
-        'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42)
-    }
-
-    best_auc = 0
-    best_model = None
-
-    for name, model in models.items():
-
-        if name == 'Logistic Regression':
-            scaler = StandardScaler()
-            Xtr = scaler.fit_transform(X_train_sel)
-            Xts = scaler.transform(X_test_sel)
-        else:
-            Xtr, Xts = X_train_sel, X_test_sel
-
-        model.fit(Xtr, y_train)
-        y_prob = model.predict_proba(Xts)[:, 1]
-        auc = roc_auc_score(y_test, y_prob)
-
-        if auc > best_auc:
-            best_auc = auc
-            best_model = model
-
-    joblib.dump((best_model, selector, X.columns), MODEL_FILE)
-
-    st.success("✅ Model trained and saved")
+st.title("🛡️ CORE X: HYPERVISOR")
+st.markdown("### Advanced AI Malware Detection Engine")
+st.caption("Real-time Threat Intelligence · Machine Learning Powered")
 
 # ----------------------------
 # LOAD MODEL
 # ----------------------------
-model, selector, feature_names = joblib.load(MODEL_FILE)
+model, selector, feature_names = joblib.load("malware_model.pkl")
 
 # ----------------------------
-# UI - FILE UPLOAD
+# SIDEBAR
+# ----------------------------
+st.sidebar.header("⚙️ Controls")
+
+use_sample = st.sidebar.button("Load Sample Data")
+
+# ----------------------------
+# SAMPLE DATA
+# ----------------------------
+def get_sample():
+    data = {col: 0 for col in feature_names}
+    sample_perms = list(feature_names[:10])
+    for p in sample_perms:
+        data[p] = 1
+    return pd.DataFrame([data])
+
+# ----------------------------
+# FILE UPLOAD
 # ----------------------------
 uploaded_file = st.file_uploader("📤 Upload CSV File", type=["csv"])
 
 if uploaded_file:
-
     df = pd.read_csv(uploaded_file)
+elif use_sample:
+    df = get_sample()
+else:
+    df = None
 
-    st.subheader("📄 Uploaded Data")
+# ----------------------------
+# MAIN LOGIC
+# ----------------------------
+if df is not None:
+
+    st.subheader("📄 Input Data")
     st.dataframe(df)
 
+    # Align input
     input_data = pd.DataFrame([{col: 0 for col in feature_names}])
-
     for col in df.columns:
         if col in input_data.columns:
             input_data[col] = df[col].iloc[0]
@@ -100,7 +67,10 @@ if uploaded_file:
     prediction = model.predict(input_selected)[0]
     confidence = model.predict_proba(input_selected)[0][1]
 
-    st.subheader("🔍 Result Dashboard")
+    # ----------------------------
+    # RESULT SECTION
+    # ----------------------------
+    st.subheader("⚡ Threat Analysis Dashboard")
 
     col1, col2, col3 = st.columns(3)
 
@@ -108,19 +78,22 @@ if uploaded_file:
         if prediction == 1:
             st.error("🚨 Malware Detected")
         else:
-            st.success("✅ Safe App")
+            st.success("✅ Safe Application")
 
     with col2:
-        st.metric("Malware Probability", f"{confidence*100:.2f}%")
+        st.metric("Threat Score", f"{confidence*100:.2f}%")
 
     with col3:
         if confidence > 0.7:
-            st.warning("HIGH RISK")
+            st.error("HIGH RISK")
         elif confidence > 0.4:
-            st.info("MEDIUM RISK")
+            st.warning("MEDIUM RISK")
         else:
             st.success("LOW RISK")
 
+    # ----------------------------
+    # RISK CHART
+    # ----------------------------
     st.subheader("📊 Risk Distribution")
 
     fig, ax = plt.subplots()
@@ -128,9 +101,58 @@ if uploaded_file:
     ax.set_ylabel("Probability")
     st.pyplot(fig)
 
+    # ----------------------------
+    # ACTIVE PERMISSIONS
+    # ----------------------------
     st.subheader("⚠️ Active Permissions")
 
     active = [col for col in df.columns if df[col].iloc[0] == 1]
 
-    for perm in active:
-        st.write("⚠️", perm)
+    if active:
+        for perm in active:
+            st.write("⚠️", perm)
+    else:
+        st.write("No active permissions detected")
+
+    # ----------------------------
+    # EXPLAINABILITY
+    # ----------------------------
+    st.subheader("🧠 AI Explainability")
+
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        selected_features = feature_names[selector.get_support()]
+
+        imp_df = pd.DataFrame({
+            "Feature": selected_features,
+            "Importance": importances
+        }).sort_values(by="Importance", ascending=False).head(10)
+
+        st.write("Top Influential Features:")
+        st.dataframe(imp_df)
+
+        fig2, ax2 = plt.subplots()
+        ax2.barh(imp_df["Feature"], imp_df["Importance"])
+        ax2.invert_yaxis()
+        st.pyplot(fig2)
+    else:
+        st.info("Model does not support feature importance")
+
+    # ----------------------------
+    # DOWNLOAD REPORT
+    # ----------------------------
+    st.subheader("📥 Download Report")
+
+    report = pd.DataFrame({
+        "Prediction": ["Malware" if prediction == 1 else "Safe"],
+        "Confidence": [confidence]
+    })
+
+    csv = report.to_csv(index=False).encode('utf-8')
+
+    st.download_button(
+        label="Download Analysis Report",
+        data=csv,
+        file_name="analysis_report.csv",
+        mime="text/csv"
+    )
