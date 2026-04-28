@@ -21,7 +21,7 @@ st.caption("Real-time Threat Intelligence · Machine Learning Powered")
 MODEL_FILE = "malware_model.pkl"
 
 if not os.path.exists(MODEL_FILE):
-    st.error("❌ Model file not found. Please train and save your model first.")
+    st.error("❌ Model file not found. Train and save your model first.")
     st.stop()
 
 model, selector, feature_names = joblib.load(MODEL_FILE)
@@ -61,7 +61,7 @@ if df is not None:
     st.subheader("📄 Input Data")
     st.dataframe(df)
 
-    # Align input to model features
+    # Align features
     input_data = pd.DataFrame([{col: 0 for col in feature_names}])
 
     for col in df.columns:
@@ -74,7 +74,7 @@ if df is not None:
     confidence = model.predict_proba(input_selected)[0][1]
 
     # ----------------------------
-    # RESULT DASHBOARD
+    # DASHBOARD
     # ----------------------------
     st.subheader("⚡ Threat Analysis Dashboard")
 
@@ -126,6 +126,7 @@ if df is not None:
     st.subheader("🔍 Why this verdict?")
 
     keywords = ["SMS", "INSTALL", "CONTACTS", "LOCATION", "ALERT"]
+
     reasons = [p for p in active if any(k in p for k in keywords)]
 
     if reasons:
@@ -137,50 +138,75 @@ if df is not None:
         st.info("No highly sensitive permissions detected.")
 
     # ----------------------------
-    # EXPLAINABILITY (STACKED)
+    # SHAP EXPLAINABILITY (SAFE)
     # ----------------------------
-    st.subheader("🧠 AI Explainability (Stacked Impact View)")
+    st.subheader("🧠 AI Explainability")
 
-    if hasattr(model, "feature_importances_"):
-        importances = model.feature_importances_
-        selected_features = feature_names[selector.get_support()]
+    selected_features = feature_names[selector.get_support()]
 
-        imp_df = pd.DataFrame({
+    try:
+        import shap
+
+        explainer = shap.Explainer(model, input_selected)
+        shap_values = explainer(input_selected)
+
+        values = shap_values.values[0]
+
+        shap_df = pd.DataFrame({
             "Feature": selected_features,
-            "Importance": importances
-        }).sort_values(by="Importance", ascending=False).head(10)
+            "SHAP": values
+        })
 
-        # Keep only active permissions
-        imp_df = imp_df[imp_df["Feature"].isin(active)]
+        shap_df = shap_df[shap_df["Feature"].isin(active)]
 
-        if len(imp_df) > 0:
-            imp_df["Normalized"] = imp_df["Importance"] / imp_df["Importance"].sum()
+        shap_df["Impact"] = shap_df["SHAP"].abs()
+        shap_df = shap_df.sort_values(by="Impact", ascending=False).head(10)
 
-            fig2, ax2 = plt.subplots(figsize=(10, 2))
+        fig2, ax2 = plt.subplots()
 
-            left = 0
-            for _, row in imp_df.iterrows():
-                ax2.barh(
-                    ["Total Impact"],
-                    row["Normalized"],
-                    left=left,
-                    label=f"{row['Feature']} ({row['Normalized']*100:.1f}%)"
-                )
-                left += row["Normalized"]
+        colors = ["red" if v > 0 else "green" for v in shap_df["SHAP"]]
 
-            ax2.set_xlim(0, 1)
-            ax2.set_xlabel("Contribution to Prediction")
-            ax2.set_title("Stacked Feature Contribution")
+        ax2.barh(shap_df["Feature"], shap_df["SHAP"], color=colors)
+        ax2.axvline(0)
 
-            ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax2.set_title("Red = Malware | Green = Safe")
+        ax2.invert_yaxis()
 
-            st.pyplot(fig2)
+        st.pyplot(fig2)
 
-        else:
-            st.info("No active features contributing to risk")
+        # TEXT SUMMARY
+        st.subheader("💡 SHAP Insight")
 
-    else:
-        st.info("Model does not support feature importance")
+        pos = shap_df[shap_df["SHAP"] > 0]["Feature"].tolist()
+        neg = shap_df[shap_df["SHAP"] < 0]["Feature"].tolist()
+
+        if pos:
+            st.error("🔴 Increases Risk:\n" + "\n".join(pos[:5]))
+
+        if neg:
+            st.success("🟢 Decreases Risk:\n" + "\n".join(neg[:5]))
+
+    except Exception:
+        st.warning("⚠️ SHAP failed, using fallback")
+
+        if hasattr(model, "feature_importances_"):
+            importances = model.feature_importances_
+
+            imp_df = pd.DataFrame({
+                "Feature": selected_features,
+                "Importance": importances
+            })
+
+            imp_df = imp_df[imp_df["Feature"].isin(active)]
+            imp_df = imp_df.sort_values(by="Importance", ascending=False).head(10)
+
+            fig3, ax3 = plt.subplots()
+            ax3.barh(imp_df["Feature"], imp_df["Importance"])
+            ax3.invert_yaxis()
+
+            st.pyplot(fig3)
+
+            st.info("Fallback: Feature importance used")
 
     # ----------------------------
     # DOWNLOAD REPORT
@@ -197,11 +223,9 @@ if df is not None:
         ]
     })
 
-    csv = report.to_csv(index=False).encode('utf-8')
-
     st.download_button(
         label="Download Analysis Report",
-        data=csv,
+        data=report.to_csv(index=False).encode('utf-8'),
         file_name="COREX_report.csv",
         mime="text/csv"
     )
