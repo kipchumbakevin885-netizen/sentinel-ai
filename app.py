@@ -1,143 +1,224 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
+from datetime import datetime
 import plotly.express as px
-from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-import os
 
-# --- 1. UI CONFIGURATION ---
-st.set_page_config(page_title="CORE X | Tectitans UoN", layout="wide", page_icon="🛡️")
+# ----------------------------
+# PAGE CONFIG
+# ----------------------------
+st.set_page_config(page_title="CORE X: HYPERVISOR", layout="wide")
 
-st.markdown("""
-    <style>
-    .main { background: radial-gradient(circle, #1a1c23 0%, #0e1117 100%); color: #e1e1e1; }
-    .stMetric, .report-card {
-        background: rgba(22, 27, 34, 0.7);
-        border: 1px solid #00f2ff;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
-        backdrop-filter: blur(10px);
-    }
-    [data-testid="stMetricValue"] { 
-        color: #00f2ff; 
-        font-family: 'Share Tech Mono', monospace; 
-    }
-    h1, h2, h3 { color: #00f2ff; font-family: 'Share Tech Mono', sans-serif; }
-    .footer-text { text-align: center; color: #57606a; padding-top: 50px; font-family: 'Share Tech Mono'; }
-    </style>
-    """, unsafe_allow_html=True)
+st.title("🛡️ CORE X: HYPERVISOR")
+st.caption("AI Malware Detection + Explainability Engine")
 
-# --- 2. HEADER ---
-st.markdown("# 🛡️ CORE X: HYPERVISOR")
-st.markdown("#### **RECTITANS** // C4D LAB // UNIVERSITY OF NAIROBI")
-st.divider()
+# ----------------------------
+# PERMISSION RISK DATABASE
+# ----------------------------
+DANGEROUS_PERMS = {
+    "READ_SMS": 0.92, "SEND_SMS": 0.89, "RECORD_AUDIO": 0.88,
+    "PROCESS_OUTGOING_CALLS": 0.85, "READ_CALL_LOG": 0.83,
+    "ACCESS_FINE_LOCATION": 0.78, "CAMERA": 0.72, "GET_ACCOUNTS": 0.68,
+    "READ_CONTACTS": 0.55, "READ_PHONE_STATE": 0.52, "INTERNET": 0.40,
+    "SYSTEM_ALERT_WINDOW": 0.75, "BIND_ACCESSIBILITY_SERVICE": 0.82,
+    "DEVICE_ADMIN": 0.95, "INSTALL_PACKAGES": 0.90,
+}
 
-# --- 3. INTELLIGENCE ENGINE ---
-@st.cache_data
-def initialize_engine():
-    filename = 'Android_Malware.csv'
-    current_dir = os.path.dirname(__file__)
-    target_path = os.path.join(current_dir, filename)
+# ----------------------------
+# LOAD MODEL
+# ----------------------------
+MODEL_PATH = "malware_model.pkl"
 
-    if not os.path.exists(target_path):
-        target_path = filename 
-    if not os.path.exists(target_path):
-        raise FileNotFoundError("Source Data Offline: Android_Malware.csv not found.")
-
-    df = pd.read_csv(target_path)
-    target_col = df.columns[-1] 
-    X = df.drop([target_col], axis=1).iloc[:, :20] 
-    y = df[target_col].apply(lambda x: 1 if str(x).lower() in ['malware', '1', 'positive', 'true', 'threat'] else 0)
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    model = XGBClassifier(n_estimators=100, learning_rate=0.1, max_depth=5)
-    model.fit(X_train.values, y_train.values)
-    
-    predictions = model.predict(X_test.values)
-    acc = accuracy_score(y_test, predictions)
-    return model, X.columns.tolist(), acc
-
-try:
-    with st.spinner("⚡ SYNCHRONIZING SYSTEM KERNEL..."):
-        model, feature_names, live_accuracy = initialize_engine()
-    
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("SHIELD", "ARMED", "Stable")
-    m2.metric("ACCURACY", f"{live_accuracy:.2%}", "Verified")
-    m3.metric("KERNEL", "ACTIVE", "Priority")
-    m4.metric("XGBLOCK", "ON", "Secured")
-except Exception as e:
-    st.error(f"⚠️ SYSTEM CRITICAL: {e}")
-    st.stop()
-
-st.divider()
-
-# --- 4. SCANNER ---
-st.header("🔍 LIVE THREAT SCANNER")
-up_col, chart_col = st.columns([1, 1.2])
-
-with up_col:
-    uploaded_file = st.file_uploader("UPLOAD HEX-LOGS / CSV", type="csv")
-
-if uploaded_file:
-    input_df = pd.read_csv(uploaded_file)
+@st.cache_resource
+def load_model():
     try:
-        # Align Features
-        test_row = pd.DataFrame(columns=feature_names)
-        for col in feature_names:
-            test_row.loc[0, col] = input_df[col].iloc[0] if col in input_df.columns else 0
-        
-        test_row = test_row.astype(float)
-        prediction = model.predict(test_row.values)
-        prob = model.predict_proba(test_row.values)[0][1]
+        return joblib.load(MODEL_PATH)
+    except:
+        return None
 
-        # --- 5. SCAN REPORT ---
-        st.markdown('<div class="report-card">', unsafe_allow_html=True)
-        st.subheader("📋 DIAGNOSTIC REPORT")
-        
-        risk_label = "CRITICAL THREAT DETECTED" if prediction[0] == 1 else "INTEGRITY VERIFIED"
-        risk_color = "#ff4b4b" if prediction[0] == 1 else "#00f2ff"
-        
-        st.markdown(f"**RESULT:** <span style='color:{risk_color}; font-weight:bold;'>{risk_label}</span>", unsafe_allow_html=True)
-        st.write(f"**CONFIDENCE:** {prob:.2%}")
-        
-        st.divider()
-        st.markdown("**SYSTEM RECOMMENDATION:**")
-        if prediction[0] == 1:
-            st.error("⚠️ PROHIBIT INSTALLATION. Manifest shows high correlation with known malware vectors. XGBlock recommends immediate deletion.")
-        else:
-            st.success("✔️ NO MALICIOUS SIGNATURES. Permission requests are consistent with benign app architecture.")
-        st.markdown('</div>', unsafe_allow_html=True)
+model_data = load_model()
 
-        with chart_col:
-            st.subheader("📊 PERMISSION RISK WEIGHTS")
-            # Cleaning names for better UI display
-            clean_names = [n.split('.')[-1] for n in feature_names[:12]]
-            weights = test_row.values.flatten()[:12]
-            
-            fig_df = pd.DataFrame({'Permission': clean_names, 'Detected': weights})
-            fig = px.bar(fig_df, x='Detected', y='Permission', orientation='h',
-                         color='Detected', color_continuous_scale=['#00f2ff', '#ff4b4b'])
-            
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font_color="#ffffff",
-                xaxis=dict(showgrid=False, title="Heuristic Impact", range=[0,1]),
-                yaxis=dict(showgrid=False),
-                showlegend=False,
-                coloraxis_showscale=False,
-                height=450,
-                margin=dict(l=20, r=20, t=20, b=20)
-            )
-            st.plotly_chart(fig, use_container_width=True)
+if model_data:
+    model, selector, feature_names = model_data
+    MODE = "ML"
+else:
+    MODE = "DEMO"
 
-    except Exception as e:
-        st.error(f"ANALYSIS INTERRUPTED: {e}")
+st.sidebar.title("⚙️ System Mode")
+st.sidebar.info(f"{MODE} MODE ACTIVE")
 
-# --- 6. FOOTER ---
-st.markdown("---")
-st.markdown("""<div class="footer-text"><b>HYPERVISOR v1.0.0 // RECTITANS</b><br>C4D LAB // UNIVERSITY OF NAIROBI // STRATEGIC DEFENSE UNIT</div>""", unsafe_allow_html=True)
+# ----------------------------
+# CORE ANALYSIS
+# ----------------------------
+def analyze_permissions(active_perms, input_vector=None):
+    if MODE == "ML" and input_vector is not None:
+        input_selected = selector.transform(input_vector)
+        pred = model.predict(input_selected)[0]
+        prob = model.predict_proba(input_selected)[0][1]
+
+        return {
+            "prediction": pred,
+            "confidence": prob,
+            "mode": "ML"
+        }
+
+    # DEMO fallback
+    weights = [DANGEROUS_PERMS.get(p, 0.1) for p in active_perms]
+    risk = min(sum(weights) / (len(DANGEROUS_PERMS) * 0.5), 0.98) if weights else 0.02
+
+    return {
+        "prediction": 1 if risk > 0.5 else 0,
+        "confidence": risk,
+        "mode": "DEMO"
+    }
+
+# ----------------------------
+# SHAP-LIKE EXPLAINABILITY
+# ----------------------------
+def explain(active_perms):
+    explanation = []
+
+    for perm in active_perms:
+        impact = DANGEROUS_PERMS.get(perm, 0.1)
+        explanation.append({
+            "Feature": perm,
+            "Impact": impact,
+            "Direction": "Increase Risk" if impact > 0.5 else "Low Risk"
+        })
+
+    df = pd.DataFrame(explanation)
+    return df.sort_values("Impact", ascending=False).head(10)
+
+# ----------------------------
+# TABS
+# ----------------------------
+tab1, tab2 = st.tabs(["🧠 Manual Scan", "📂 CSV Upload"])
+
+# ============================
+# 🧠 MANUAL MODE
+# ============================
+with tab1:
+
+    st.subheader("Select Permissions")
+
+    cols = st.columns(3)
+    selected_perms = {}
+
+    perms = list(DANGEROUS_PERMS.keys())
+
+    for i, perm in enumerate(perms):
+        selected_perms[perm] = cols[i % 3].checkbox(perm)
+
+    active = [k for k, v in selected_perms.items() if v]
+
+    if st.button("🚀 Run Analysis"):
+
+        # Prepare ML input
+        input_vector = None
+        if MODE == "ML":
+            input_vector = pd.DataFrame([{col: 0 for col in feature_names}])
+            for p in active:
+                if p in input_vector.columns:
+                    input_vector[p] = 1
+
+        result = analyze_permissions(active, input_vector)
+
+        risk = result["confidence"]
+
+        # RESULT UI
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if result["prediction"] == 1:
+                st.error("🚨 Malware Detected")
+            else:
+                st.success("✅ Safe App")
+
+        with col2:
+            st.metric("Malware Probability", f"{risk*100:.2f}%")
+
+        with col3:
+            if risk > 0.7:
+                st.error("HIGH RISK")
+            elif risk > 0.4:
+                st.warning("MEDIUM RISK")
+            else:
+                st.success("LOW RISK")
+
+        # ----------------------------
+        # RISK CHART
+        # ----------------------------
+        st.subheader("📊 Risk Distribution")
+
+        fig = px.bar(
+            x=["Safe", "Malware"],
+            y=[1-risk, risk],
+            labels={"x": "Class", "y": "Probability"},
+            title="Prediction Distribution"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # ----------------------------
+        # EXPLAINABILITY
+        # ----------------------------
+        st.subheader("🧠 Explainability (Why this result?)")
+
+        exp_df = explain(active)
+
+        st.dataframe(exp_df)
+
+        fig2 = px.bar(
+            exp_df,
+            x="Impact",
+            y="Feature",
+            orientation="h",
+            color="Impact",
+            title="Top Risk Contributors"
+        )
+
+        st.plotly_chart(fig2, use_container_width=True)
+
+# ============================
+# 📂 CSV MODE
+# ============================
+with tab2:
+
+    st.subheader("Upload Dataset")
+
+    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+
+    if uploaded_file:
+
+        df = pd.read_csv(uploaded_file)
+        st.write("Preview", df.head())
+
+        results = []
+
+        for _, row in df.iterrows():
+
+            active = [col for col in df.columns if row[col] == 1]
+
+            input_vector = None
+            if MODE == "ML":
+                input_vector = pd.DataFrame([{col: 0 for col in feature_names}])
+                for p in active:
+                    if p in input_vector.columns:
+                        input_vector[p] = 1
+
+            result = analyze_permissions(active, input_vector)
+
+            results.append({
+                "Prediction": "Malware" if result["prediction"] == 1 else "Safe",
+                "Confidence": result["confidence"]
+            })
+
+        result_df = pd.DataFrame(results)
+
+        st.subheader("Batch Results")
+        st.dataframe(result_df)
+
+        st.subheader("📊 Summary")
+
+        fig = px.histogram(result_df, x="Confidence", title="Confidence Distribution")
+        st.plotly_chart(fig, use_container_width=True)
