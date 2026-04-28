@@ -3,7 +3,6 @@ import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 
 st.set_page_config(
     page_title="CORE X: HYPERVISOR",
@@ -18,18 +17,13 @@ st.caption("Real-time Threat Intelligence · Machine Learning Powered")
 # ----------------------------
 # LOAD MODEL
 # ----------------------------
-MODEL_FILE = "malware_model.pkl"
-
-if not os.path.exists(MODEL_FILE):
-    st.error("❌ Model file not found. Train and save your model first.")
-    st.stop()
-
-model, selector, feature_names = joblib.load(MODEL_FILE)
+model, selector, feature_names = joblib.load("malware_model.pkl")
 
 # ----------------------------
 # SIDEBAR
 # ----------------------------
 st.sidebar.header("⚙️ Controls")
+
 use_sample = st.sidebar.button("Load Sample Data")
 
 # ----------------------------
@@ -37,8 +31,9 @@ use_sample = st.sidebar.button("Load Sample Data")
 # ----------------------------
 def get_sample():
     data = {col: 0 for col in feature_names}
-    for col in list(feature_names[:10]):
-        data[col] = 1
+    sample_perms = list(feature_names[:10])
+    for p in sample_perms:
+        data[p] = 1
     return pd.DataFrame([data])
 
 # ----------------------------
@@ -61,9 +56,8 @@ if df is not None:
     st.subheader("📄 Input Data")
     st.dataframe(df)
 
-    # Align features
+    # Align input
     input_data = pd.DataFrame([{col: 0 for col in feature_names}])
-
     for col in df.columns:
         if col in input_data.columns:
             input_data[col] = df[col].iloc[0]
@@ -74,7 +68,7 @@ if df is not None:
     confidence = model.predict_proba(input_selected)[0][1]
 
     # ----------------------------
-    # DASHBOARD
+    # RESULT SECTION
     # ----------------------------
     st.subheader("⚡ Threat Analysis Dashboard")
 
@@ -116,97 +110,33 @@ if df is not None:
 
     if active:
         for perm in active:
-            st.markdown(f"- ⚠️ `{perm}`")
+            st.write("⚠️", perm)
     else:
-        st.success("No active permissions detected")
+        st.write("No active permissions detected")
 
     # ----------------------------
-    # WHY THIS VERDICT
-    # ----------------------------
-    st.subheader("🔍 Why this verdict?")
-
-    keywords = ["SMS", "INSTALL", "CONTACTS", "LOCATION", "ALERT"]
-
-    reasons = [p for p in active if any(k in p for k in keywords)]
-
-    if reasons:
-        st.warning(
-            "This app is flagged due to sensitive permissions:\n\n" +
-            "\n".join([f"- {r}" for r in reasons[:5]])
-        )
-    else:
-        st.info("No highly sensitive permissions detected.")
-
-    # ----------------------------
-    # SHAP EXPLAINABILITY (SAFE)
+    # EXPLAINABILITY
     # ----------------------------
     st.subheader("🧠 AI Explainability")
 
-    selected_features = feature_names[selector.get_support()]
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        selected_features = feature_names[selector.get_support()]
 
-    try:
-        import shap
-
-        explainer = shap.Explainer(model, input_selected)
-        shap_values = explainer(input_selected)
-
-        values = shap_values.values[0]
-
-        shap_df = pd.DataFrame({
+        imp_df = pd.DataFrame({
             "Feature": selected_features,
-            "SHAP": values
-        })
+            "Importance": importances
+        }).sort_values(by="Importance", ascending=False).head(10)
 
-        shap_df = shap_df[shap_df["Feature"].isin(active)]
-
-        shap_df["Impact"] = shap_df["SHAP"].abs()
-        shap_df = shap_df.sort_values(by="Impact", ascending=False).head(10)
+        st.write("Top Influential Features:")
+        st.dataframe(imp_df)
 
         fig2, ax2 = plt.subplots()
-
-        colors = ["red" if v > 0 else "green" for v in shap_df["SHAP"]]
-
-        ax2.barh(shap_df["Feature"], shap_df["SHAP"], color=colors)
-        ax2.axvline(0)
-
-        ax2.set_title("Red = Malware | Green = Safe")
+        ax2.barh(imp_df["Feature"], imp_df["Importance"])
         ax2.invert_yaxis()
-
         st.pyplot(fig2)
-
-        # TEXT SUMMARY
-        st.subheader("💡 SHAP Insight")
-
-        pos = shap_df[shap_df["SHAP"] > 0]["Feature"].tolist()
-        neg = shap_df[shap_df["SHAP"] < 0]["Feature"].tolist()
-
-        if pos:
-            st.error("🔴 Increases Risk:\n" + "\n".join(pos[:5]))
-
-        if neg:
-            st.success("🟢 Decreases Risk:\n" + "\n".join(neg[:5]))
-
-    except Exception:
-        st.warning("⚠️ SHAP failed, using fallback")
-
-        if hasattr(model, "feature_importances_"):
-            importances = model.feature_importances_
-
-            imp_df = pd.DataFrame({
-                "Feature": selected_features,
-                "Importance": importances
-            })
-
-            imp_df = imp_df[imp_df["Feature"].isin(active)]
-            imp_df = imp_df.sort_values(by="Importance", ascending=False).head(10)
-
-            fig3, ax3 = plt.subplots()
-            ax3.barh(imp_df["Feature"], imp_df["Importance"])
-            ax3.invert_yaxis()
-
-            st.pyplot(fig3)
-
-            st.info("Fallback: Feature importance used")
+    else:
+        st.info("Model does not support feature importance")
 
     # ----------------------------
     # DOWNLOAD REPORT
@@ -215,20 +145,14 @@ if df is not None:
 
     report = pd.DataFrame({
         "Prediction": ["Malware" if prediction == 1 else "Safe"],
-        "Confidence": [confidence],
-        "Risk Level": [
-            "HIGH" if confidence > 0.7 else
-            "MEDIUM" if confidence > 0.4 else
-            "LOW"
-        ]
+        "Confidence": [confidence]
     })
+
+    csv = report.to_csv(index=False).encode('utf-8')
 
     st.download_button(
         label="Download Analysis Report",
-        data=report.to_csv(index=False).encode('utf-8'),
-        file_name="COREX_report.csv",
+        data=csv,
+        file_name="analysis_report.csv",
         mime="text/csv"
     )
-
-else:
-    st.info("📂 Upload a CSV file or use sample data to begin analysis")
