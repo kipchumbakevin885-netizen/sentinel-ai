@@ -1,216 +1,143 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
+import plotly.express as px
+from xgboost import XGBClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 import os
-import matplotlib.pyplot as plt
 
-# Optional SHAP (safe fallback)
+# --- 1. UI CONFIGURATION ---
+st.set_page_config(page_title="CORE X | Tectitans UoN", layout="wide", page_icon="🛡️")
+
+st.markdown("""
+    <style>
+    .main { background: radial-gradient(circle, #1a1c23 0%, #0e1117 100%); color: #e1e1e1; }
+    .stMetric, .report-card {
+        background: rgba(22, 27, 34, 0.7);
+        border: 1px solid #00f2ff;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+        backdrop-filter: blur(10px);
+    }
+    [data-testid="stMetricValue"] { 
+        color: #00f2ff; 
+        font-family: 'Share Tech Mono', monospace; 
+    }
+    h1, h2, h3 { color: #00f2ff; font-family: 'Share Tech Mono', sans-serif; }
+    .footer-text { text-align: center; color: #57606a; padding-top: 50px; font-family: 'Share Tech Mono'; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. HEADER ---
+st.markdown("# 🛡️ CORE X: HYPERVISOR")
+st.markdown("#### **RECTITANS** // C4D LAB // UNIVERSITY OF NAIROBI")
+st.divider()
+
+# --- 3. INTELLIGENCE ENGINE ---
+@st.cache_data
+def initialize_engine():
+    filename = 'Android_Malware.csv'
+    current_dir = os.path.dirname(__file__)
+    target_path = os.path.join(current_dir, filename)
+
+    if not os.path.exists(target_path):
+        target_path = filename 
+    if not os.path.exists(target_path):
+        raise FileNotFoundError("Source Data Offline: Android_Malware.csv not found.")
+
+    df = pd.read_csv(target_path)
+    target_col = df.columns[-1] 
+    X = df.drop([target_col], axis=1).iloc[:, :20] 
+    y = df[target_col].apply(lambda x: 1 if str(x).lower() in ['malware', '1', 'positive', 'true', 'threat'] else 0)
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = XGBClassifier(n_estimators=100, learning_rate=0.1, max_depth=5)
+    model.fit(X_train.values, y_train.values)
+    
+    predictions = model.predict(X_test.values)
+    acc = accuracy_score(y_test, predictions)
+    return model, X.columns.tolist(), acc
+
 try:
-    import shap
-    SHAP_AVAILABLE = True
-except:
-    SHAP_AVAILABLE = False
+    with st.spinner("⚡ SYNCHRONIZING SYSTEM KERNEL..."):
+        model, feature_names, live_accuracy = initialize_engine()
+    
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("SHIELD", "ARMED", "Stable")
+    m2.metric("ACCURACY", f"{live_accuracy:.2%}", "Verified")
+    m3.metric("KERNEL", "ACTIVE", "Priority")
+    m4.metric("XGBLOCK", "ON", "Secured")
+except Exception as e:
+    st.error(f"⚠️ SYSTEM CRITICAL: {e}")
+    st.stop()
 
-st.set_page_config(
-    page_title="CORE X: HYPERVISOR",
-    page_icon="🛡️",
-    layout="wide"
-)
+st.divider()
 
-st.title("🛡️ CORE X: HYPERVISOR")
-st.markdown("### AI Malware Detection Engine")
-st.caption("Machine Learning + Explainability")
+# --- 4. SCANNER ---
+st.header("🔍 LIVE THREAT SCANNER")
+up_col, chart_col = st.columns([1, 1.2])
 
-MODEL_FILE = "malware_model.pkl"
-DATA_FILE = "Android_Malware.csv"
-
-# ----------------------------
-# TRAIN MODEL IF NOT EXISTS
-# ----------------------------
-if not os.path.exists(MODEL_FILE):
-
-    st.warning("Training model... please wait")
-
-    from sklearn.model_selection import train_test_split
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.feature_selection import SelectKBest, chi2
-    from sklearn.metrics import roc_auc_score
-
-    df = pd.read_csv(DATA_FILE)
-
-    X = df.drop("Result", axis=1)
-    y = df["Result"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    selector = SelectKBest(chi2, k=20)
-    X_train_sel = selector.fit_transform(X_train, y_train)
-    X_test_sel = selector.transform(X_test)
-
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_train_sel, y_train)
-
-    joblib.dump((model, selector, X.columns), MODEL_FILE)
-
-    st.success("Model trained and saved")
-
-# ----------------------------
-# LOAD MODEL
-# ----------------------------
-model, selector, feature_names = joblib.load(MODEL_FILE)
-
-# ----------------------------
-# SAMPLE DATA
-# ----------------------------
-def get_sample():
-    data = {col: 0 for col in feature_names}
-    for col in list(feature_names[:10]):
-        data[col] = 1
-    return pd.DataFrame([data])
-
-# ----------------------------
-# FILE UPLOAD
-# ----------------------------
-st.sidebar.header("Controls")
-use_sample = st.sidebar.button("Load Sample")
-
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+with up_col:
+    uploaded_file = st.file_uploader("UPLOAD HEX-LOGS / CSV", type="csv")
 
 if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-elif use_sample:
-    df = get_sample()
-else:
-    df = None
-
-# ----------------------------
-# MAIN LOGIC
-# ----------------------------
-if df is not None:
-
-    st.subheader("Input Data")
-    st.dataframe(df)
-
-    # Align features
-    input_data = pd.DataFrame([{col: 0 for col in feature_names}])
-    for col in df.columns:
-        if col in input_data.columns:
-            input_data[col] = df[col].iloc[0]
-
-    input_selected = selector.transform(input_data)
-
-    prediction = model.predict(input_selected)[0]
-    confidence = model.predict_proba(input_selected)[0][1]
-
-    # ----------------------------
-    # RESULT
-    # ----------------------------
-    st.subheader("Threat Analysis")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if prediction == 1:
-            st.error("Malware Detected")
-        else:
-            st.success("Safe Application")
-
-    with col2:
-        st.metric("Malware Probability", f"{confidence*100:.2f}%")
-
-    with col3:
-        if confidence > 0.7:
-            st.error("HIGH RISK")
-        elif confidence > 0.4:
-            st.warning("MEDIUM RISK")
-        else:
-            st.success("LOW RISK")
-
-    # ----------------------------
-    # RISK CHART
-    # ----------------------------
-    st.subheader("Risk Distribution")
-
-    fig, ax = plt.subplots()
-    ax.bar(["Safe", "Malware"], [1-confidence, confidence])
-    ax.set_ylabel("Probability")
-    st.pyplot(fig)
-
-    # ----------------------------
-    # ACTIVE PERMISSIONS
-    # ----------------------------
-    st.subheader("Active Permissions")
-
-    active = [col for col in df.columns if df[col].iloc[0] == 1]
-
-    for perm in active:
-        st.write("⚠️", perm)
-
-    # ----------------------------
-    # EXPLAINABILITY
-    # ----------------------------
-    st.subheader("AI Explainability")
-
+    input_df = pd.read_csv(uploaded_file)
     try:
-        if SHAP_AVAILABLE:
-            explainer = shap.Explainer(model, input_selected)
-            shap_values = explainer(input_selected)
+        # Align Features
+        test_row = pd.DataFrame(columns=feature_names)
+        for col in feature_names:
+            test_row.loc[0, col] = input_df[col].iloc[0] if col in input_df.columns else 0
+        
+        test_row = test_row.astype(float)
+        prediction = model.predict(test_row.values)
+        prob = model.predict_proba(test_row.values)[0][1]
 
-            values = shap_values.values[0]
-            features = feature_names[selector.get_support()]
-
-            shap_df = pd.DataFrame({
-                "Feature": features,
-                "Impact": values
-            }).sort_values(by="Impact", key=abs, ascending=False).head(10)
-
-            st.write("Top Feature Impact (SHAP):")
-            st.dataframe(shap_df)
-
-            fig2, ax2 = plt.subplots()
-            ax2.barh(shap_df["Feature"], shap_df["Impact"])
-            ax2.invert_yaxis()
-            st.pyplot(fig2)
-
+        # --- 5. SCAN REPORT ---
+        st.markdown('<div class="report-card">', unsafe_allow_html=True)
+        st.subheader("📋 DIAGNOSTIC REPORT")
+        
+        risk_label = "CRITICAL THREAT DETECTED" if prediction[0] == 1 else "INTEGRITY VERIFIED"
+        risk_color = "#ff4b4b" if prediction[0] == 1 else "#00f2ff"
+        
+        st.markdown(f"**RESULT:** <span style='color:{risk_color}; font-weight:bold;'>{risk_label}</span>", unsafe_allow_html=True)
+        st.write(f"**CONFIDENCE:** {prob:.2%}")
+        
+        st.divider()
+        st.markdown("**SYSTEM RECOMMENDATION:**")
+        if prediction[0] == 1:
+            st.error("⚠️ PROHIBIT INSTALLATION. Manifest shows high correlation with known malware vectors. XGBlock recommends immediate deletion.")
         else:
-            raise Exception("SHAP not installed")
+            st.success("✔️ NO MALICIOUS SIGNATURES. Permission requests are consistent with benign app architecture.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    except:
-        st.info("Using fallback explainability")
+        with chart_col:
+            st.subheader("📊 PERMISSION RISK WEIGHTS")
+            # Cleaning names for better UI display
+            clean_names = [n.split('.')[-1] for n in feature_names[:12]]
+            weights = test_row.values.flatten()[:12]
+            
+            fig_df = pd.DataFrame({'Permission': clean_names, 'Detected': weights})
+            fig = px.bar(fig_df, x='Detected', y='Permission', orientation='h',
+                         color='Detected', color_continuous_scale=['#00f2ff', '#ff4b4b'])
+            
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font_color="#ffffff",
+                xaxis=dict(showgrid=False, title="Heuristic Impact", range=[0,1]),
+                yaxis=dict(showgrid=False),
+                showlegend=False,
+                coloraxis_showscale=False,
+                height=450,
+                margin=dict(l=20, r=20, t=20, b=20)
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-        importances = model.feature_importances_
-        features = feature_names[selector.get_support()]
+    except Exception as e:
+        st.error(f"ANALYSIS INTERRUPTED: {e}")
 
-        imp_df = pd.DataFrame({
-            "Feature": features,
-            "Importance": importances
-        }).sort_values(by="Importance", ascending=False).head(10)
-
-        st.dataframe(imp_df)
-
-        fig3, ax3 = plt.subplots()
-        ax3.barh(imp_df["Feature"], imp_df["Importance"])
-        ax3.invert_yaxis()
-        st.pyplot(fig3)
-
-    # ----------------------------
-    # DOWNLOAD REPORT
-    # ----------------------------
-    st.subheader("Download Report")
-
-    report = pd.DataFrame({
-        "Prediction": ["Malware" if prediction == 1 else "Safe"],
-        "Confidence": [confidence]
-    })
-
-    csv = report.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        label="Download CSV Report",
-        data=csv,
-        file_name="analysis_report.csv",
-        mime="text/csv"
-    )
+# --- 6. FOOTER ---
+st.markdown("---")
+st.markdown("""<div class="footer-text"><b>HYPERVISOR v1.0.0 // RECTITANS</b><br>C4D LAB // UNIVERSITY OF NAIROBI // STRATEGIC DEFENSE UNIT</div>""", unsafe_allow_html=True)
