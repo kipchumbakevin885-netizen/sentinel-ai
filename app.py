@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 st.set_page_config(
     page_title="CORE X: HYPERVISOR",
@@ -17,13 +18,18 @@ st.caption("Real-time Threat Intelligence · Machine Learning Powered")
 # ----------------------------
 # LOAD MODEL
 # ----------------------------
-model, selector, feature_names = joblib.load("malware_model.pkl")
+MODEL_FILE = "malware_model.pkl"
+
+if not os.path.exists(MODEL_FILE):
+    st.error("❌ Model file not found. Please train and save your model first.")
+    st.stop()
+
+model, selector, feature_names = joblib.load(MODEL_FILE)
 
 # ----------------------------
 # SIDEBAR
 # ----------------------------
 st.sidebar.header("⚙️ Controls")
-
 use_sample = st.sidebar.button("Load Sample Data")
 
 # ----------------------------
@@ -31,9 +37,8 @@ use_sample = st.sidebar.button("Load Sample Data")
 # ----------------------------
 def get_sample():
     data = {col: 0 for col in feature_names}
-    sample_perms = list(feature_names[:10])
-    for p in sample_perms:
-        data[p] = 1
+    for col in list(feature_names[:10]):
+        data[col] = 1
     return pd.DataFrame([data])
 
 # ----------------------------
@@ -56,8 +61,9 @@ if df is not None:
     st.subheader("📄 Input Data")
     st.dataframe(df)
 
-    # Align input
+    # Align input to model features
     input_data = pd.DataFrame([{col: 0 for col in feature_names}])
+
     for col in df.columns:
         if col in input_data.columns:
             input_data[col] = df[col].iloc[0]
@@ -68,7 +74,7 @@ if df is not None:
     confidence = model.predict_proba(input_selected)[0][1]
 
     # ----------------------------
-    # RESULT SECTION
+    # RESULT DASHBOARD
     # ----------------------------
     st.subheader("⚡ Threat Analysis Dashboard")
 
@@ -110,14 +116,30 @@ if df is not None:
 
     if active:
         for perm in active:
-            st.write("⚠️", perm)
+            st.markdown(f"- ⚠️ `{perm}`")
     else:
-        st.write("No active permissions detected")
+        st.success("No active permissions detected")
 
     # ----------------------------
-    # EXPLAINABILITY
+    # WHY THIS VERDICT
     # ----------------------------
-    st.subheader("🧠 AI Explainability")
+    st.subheader("🔍 Why this verdict?")
+
+    keywords = ["SMS", "INSTALL", "CONTACTS", "LOCATION", "ALERT"]
+    reasons = [p for p in active if any(k in p for k in keywords)]
+
+    if reasons:
+        st.warning(
+            "This app is flagged due to sensitive permissions:\n\n" +
+            "\n".join([f"- {r}" for r in reasons[:5]])
+        )
+    else:
+        st.info("No highly sensitive permissions detected.")
+
+    # ----------------------------
+    # EXPLAINABILITY (STACKED)
+    # ----------------------------
+    st.subheader("🧠 AI Explainability (Stacked Impact View)")
 
     if hasattr(model, "feature_importances_"):
         importances = model.feature_importances_
@@ -128,13 +150,35 @@ if df is not None:
             "Importance": importances
         }).sort_values(by="Importance", ascending=False).head(10)
 
-        st.write("Top Influential Features:")
-        st.dataframe(imp_df)
+        # Keep only active permissions
+        imp_df = imp_df[imp_df["Feature"].isin(active)]
 
-        fig2, ax2 = plt.subplots()
-        ax2.barh(imp_df["Feature"], imp_df["Importance"])
-        ax2.invert_yaxis()
-        st.pyplot(fig2)
+        if len(imp_df) > 0:
+            imp_df["Normalized"] = imp_df["Importance"] / imp_df["Importance"].sum()
+
+            fig2, ax2 = plt.subplots(figsize=(10, 2))
+
+            left = 0
+            for _, row in imp_df.iterrows():
+                ax2.barh(
+                    ["Total Impact"],
+                    row["Normalized"],
+                    left=left,
+                    label=f"{row['Feature']} ({row['Normalized']*100:.1f}%)"
+                )
+                left += row["Normalized"]
+
+            ax2.set_xlim(0, 1)
+            ax2.set_xlabel("Contribution to Prediction")
+            ax2.set_title("Stacked Feature Contribution")
+
+            ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+            st.pyplot(fig2)
+
+        else:
+            st.info("No active features contributing to risk")
+
     else:
         st.info("Model does not support feature importance")
 
@@ -145,7 +189,12 @@ if df is not None:
 
     report = pd.DataFrame({
         "Prediction": ["Malware" if prediction == 1 else "Safe"],
-        "Confidence": [confidence]
+        "Confidence": [confidence],
+        "Risk Level": [
+            "HIGH" if confidence > 0.7 else
+            "MEDIUM" if confidence > 0.4 else
+            "LOW"
+        ]
     })
 
     csv = report.to_csv(index=False).encode('utf-8')
@@ -153,6 +202,9 @@ if df is not None:
     st.download_button(
         label="Download Analysis Report",
         data=csv,
-        file_name="analysis_report.csv",
+        file_name="COREX_report.csv",
         mime="text/csv"
     )
+
+else:
+    st.info("📂 Upload a CSV file or use sample data to begin analysis")
