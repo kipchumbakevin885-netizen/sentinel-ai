@@ -63,15 +63,15 @@ st.markdown("""
 h_col1, h_col2 = st.columns([1, 6])
 with h_col2:
     st.markdown("# 🛡️ CORE X : HYPERVISOR")
-    st.markdown("#### **RECTITANS** // STRATEGIC DEFENSE UNIT // C4D LAB // UoN")
-    st.markdown("`KERNEL STATUS: ENFORCED // XGBLOCK: ACTIVE`")
+    st.markdown("#### *RECTITANS* // STRATEGIC DEFENSE UNIT // C4D LAB // UoN")
+    st.markdown("KERNEL STATUS: ENFORCED // XGBLOCK: ACTIVE")
 st.divider()
 
 # --- 3. HIGH-PERFORMANCE INTELLIGENCE ENGINE (95% TARGET) ---
 @st.cache_data
 def initialize_engine():
     filename = 'Android_Malware.csv'
-    current_dir = os.path.dirname(__file__)
+    current_dir = os.path.dirname(_file_)
     target_path = os.path.join(current_dir, filename)
 
     if not os.path.exists(target_path):
@@ -106,123 +106,4 @@ def initialize_engine():
 
 try:
     with st.spinner("⚡ DEPLOYING KERNEL ASSETS..."):
-        model, feature_names, live_accuracy = initialize_engine()
-    
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("SHIELD", "ARMED", "Stable")
-    # Displaying the boosted accuracy
-    m2.metric("DETECTION CAP.", f"{live_accuracy:.2%}", "Verified")
-    m3.metric("KERNEL", "ACTIVE", "Priority")
-    m4.metric("XGBLOCK", "ON", "Secured")
-except Exception as e:
-    st.error(f"⚠️ CORE FAILURE: {e}")
-    st.stop()
-
-st.divider()
-
-# --- 4. THREAT ANALYSIS INTERFACE ---
-st.header("🔍 Neural Sandbox Scanner")
-up_col, status_col = st.columns([3, 1])
-
-with up_col:
-    uploaded_file = st.file_uploader("DROP MALICIOUS MANIFEST (CSV)", type="csv")
-
-with status_col:
-    st.write("`LINK STATUS`")
-    if uploaded_file:
-        st.markdown('<div class="status-box"><span class="status-ok">●</span> UPLINK: ESTABLISHED</div>', unsafe_allow_html=True)
-        st.markdown('<div class="status-box"><span class="status-ok">●</span> PARSING: COMPLETE</div>', unsafe_allow_html=True)
-        st.markdown('<div class="status-box"><span class="status-ok">●</span> ANALYTICS: LIVE</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="status-box"><span class="status-wait">○</span> UPLINK: IDLE</div>', unsafe_allow_html=True)
-        st.markdown('<div class="status-box"><span class="status-wait">○</span> PARSING: WAITING</div>', unsafe_allow_html=True)
-        st.markdown('<div class="status-box"><span class="status-wait">○</span> ANALYTICS: STANDBY</div>', unsafe_allow_html=True)
-
-if uploaded_file:
-    st.divider()
-    input_df = pd.read_csv(uploaded_file)
-    try:
-        # Precision Feature Mapping
-        test_row = pd.DataFrame(columns=feature_names)
-        for col in feature_names:
-            test_row.loc[0, col] = input_df[col].iloc[0] if col in input_df.columns else 0
-        
-        test_row = test_row.astype(float)
-        prediction = model.predict(test_row.values)
-        raw_prob = model.predict_proba(test_row.values)[0][1]
-
-        # Normalized Risk Index for Competition Clarity
-        display_score = raw_prob if prediction[0] == 1 else (1 - raw_prob)
-        final_index = max(display_score, live_accuracy - 0.01) if display_score > 0.5 else display_score + 0.1
-        if final_index > 0.99: final_index = 0.985
-
-        # --- 5. ANALYTICAL MULTI-CORE OUTPUT ---
-        rep_col, gauge_col, radar_col = st.columns([1.6, 1, 1.4])
-
-        with rep_col:
-            st.markdown('<div class="report-card">', unsafe_allow_html=True)
-            st.subheader("📋 Diagnostic Briefing")
-            res_txt = "🛑 THREAT IDENTIFIED" if prediction[0] == 1 else "✅ INTEGRITY VERIFIED"
-            res_clr = "#ff4b4b" if prediction[0] == 1 else "#00f2ff"
-            st.markdown(f"**RESULT:** <span style='color:{res_clr}; font-size:1.2em; font-family:Share Tech Mono;'>{res_txt}</span>", unsafe_allow_html=True)
-            
-            idx_label = "THREAT INDEX" if prediction[0] == 1 else "SAFETY INDEX"
-            st.write(f"- **{idx_label}:** {final_index:.2%}")
-            st.write(f"- **VECTOR DEPTH:** {len(feature_names)} Points")
-            
-            st.divider()
-            st.markdown("**PROTOCOL RECOMMENDATION:**")
-            if prediction[0] == 1:
-                st.error("PROHIBIT DEPLOYMENT. High-risk heuristic signatures detected. Kernel recommends immediate quarantine.")
-            else:
-                st.success("DEPLOYMENT AUTHORIZED. Application behavior aligns with verified benign patterns.")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with gauge_col:
-            st.subheader("📊 Risk Gauge")
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = final_index * 100,
-                gauge = {
-                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#ffffff"},
-                    'bar': {'color': res_clr},
-                    'bgcolor': "rgba(0,0,0,0)",
-                    'steps': [
-                        {'range': [0, 50], 'color': 'rgba(0, 242, 255, 0.1)'},
-                        {'range': [50, 100], 'color': 'rgba(255, 75, 75, 0.1)'}
-                    ],
-                }
-            ))
-            fig_gauge.update_layout(paper_bgcolor='rgba(0,0,0,0)', font={'color': "#ffffff", 'family': "Share Tech Mono"}, height=320, margin=dict(t=50, b=0))
-            st.plotly_chart(fig_gauge, use_container_width=True)
-
-        with radar_col:
-            st.subheader("🧬 Neural Fingerprint")
-            r_vals = test_row.values.flatten()[:12]
-            r_labs = [f"V_{i}" for i in range(12)]
-            fig_radar = px.line_polar(r=r_vals, theta=r_labs, line_close=True)
-            fig_radar.update_traces(fill='toself', line_color=res_clr, marker=dict(color="#ffffff", size=8))
-            fig_radar.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', polar=dict(bgcolor='rgba(0,0,0,0)', radialaxis=dict(visible=True, range=[0, 1], gridcolor="#30363d")),
-                font={'color': "#ffffff", 'family': "Share Tech Mono"}, height=350, margin=dict(t=30, b=20)
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-
-        st.divider()
-        st.subheader("📈 Heuristic Weight Distribution")
-        clean_names = [n.split('.')[-1] for n in feature_names[:18]]
-        weights = test_row.values.flatten()[:18]
-        fig_bar = px.bar(x=weights, y=clean_names, orientation='h', color=weights, color_continuous_scale=['#00f2ff', '#ff4b4b'])
-        fig_bar.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="#ffffff",
-            xaxis=dict(showgrid=False, title="Permission Impact Severity"), yaxis=dict(showgrid=False),
-            height=500, showlegend=False, coloraxis_showscale=False
-        )
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"⚠️ KERNEL ERROR DURING ANALYSIS: {e}")
-
-# --- 6. COMMAND FOOTER ---
-st.markdown("---")
-st.markdown("""<div class="footer-text"><b>HYPERVISOR v1.2.0 // RECTITANS</b><br>C4D LAB // UNIVERSITY OF NAIROBI // STRATEGIC DEFENSE UNIT</div>""", unsafe_allow_html=True)
+        model, feature_names, live_…
