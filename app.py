@@ -9,9 +9,6 @@ from sklearn.metrics import accuracy_score
 import os
 import time
 
-# ─────────────────────────────────────────
-# PAGE CONFIG
-# ─────────────────────────────────────────
 st.set_page_config(
     page_title="CORE X: HYPERVISOR",
     layout="wide",
@@ -22,9 +19,6 @@ st.title("🛡️ CORE X: HYPERVISOR")
 st.caption("AI Malware Detection & Threat Intelligence System")
 st.divider()
 
-# ─────────────────────────────────────────
-# LOAD / TRAIN MODEL
-# ─────────────────────────────────────────
 @st.cache_resource
 def load_model():
     file = "Android_Malware.csv"
@@ -58,9 +52,6 @@ def load_model():
 
 model, features, acc = load_model()
 
-# ─────────────────────────────────────────
-# SIDEBAR
-# ─────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ System Status")
 
@@ -71,21 +62,14 @@ with st.sidebar:
         st.success("Model Ready")
         st.metric("Accuracy", f"{acc*100:.2f}%")
 
-# ─────────────────────────────────────────
-# TABS
-# ─────────────────────────────────────────
 tab1, tab2 = st.tabs(["🔍 Scan App", "📊 Dataset"])
 
-# ─────────────────────────────────────────
-# TAB 1
-# ─────────────────────────────────────────
 with tab1:
 
     mode = st.radio("Select Mode", ["Manual Input", "Upload CSV"], horizontal=True)
 
     input_data = None
 
-    # ---------- MANUAL ----------
     if mode == "Manual Input":
         st.subheader("Select Permissions")
 
@@ -104,7 +88,6 @@ with tab1:
 
         input_data = np.array([values])
 
-    # ---------- CSV ----------
     else:
         file = st.file_uploader("Upload CSV", type="csv")
 
@@ -112,14 +95,12 @@ with tab1:
             df = pd.read_csv(file)
             st.dataframe(df.head())
 
-            # Align columns
             for col in features:
                 if col not in df.columns:
                     df[col] = 0
 
             input_data = df[features].values
 
-    # ---------- RUN ----------
     if input_data is not None and st.button("🚀 Analyze", use_container_width=True):
 
         if model is None:
@@ -131,7 +112,6 @@ with tab1:
                 preds = model.predict(input_data)
                 probs = model.predict_proba(input_data)[:, 1]
 
-            # SINGLE RESULT
             if len(preds) == 1:
                 p = preds[0]
                 prob = probs[0]
@@ -162,7 +142,6 @@ with tab1:
                     ))
                     st.plotly_chart(fig, use_container_width=True)
 
-                # FEATURE IMPORTANCE
                 if hasattr(model, "feature_importances_"):
                     st.subheader("🔍 Top Risk Factors")
 
@@ -181,7 +160,6 @@ with tab1:
 
                     st.plotly_chart(fig2, use_container_width=True)
 
-            # BATCH RESULT
             else:
                 st.subheader("Batch Results")
 
@@ -196,9 +174,6 @@ with tab1:
                 fig = px.histogram(result_df, x="Probability", title="Risk Distribution")
                 st.plotly_chart(fig, use_container_width=True)
 
-# ─────────────────────────────────────────
-# TAB 2
-# ─────────────────────────────────────────
 with tab2:
     st.subheader("Dataset Preview")
 
@@ -208,9 +183,7 @@ with tab2:
     else:
         st.warning("No dataset found")
 
-# ─────────────────────────────────────────
-# FOOTER
-# ─────────────────────────────────────────
+
 st.markdown("""
 <hr>
 <center>CORE X: HYPERVISOR • AI Malware Detection System</center>
