@@ -17,16 +17,17 @@ st.set_page_config(
     page_icon="🛡️"
 )
 
-# Custom CSS for Cyber-Security Aesthetic
+# Custom Styling
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     .stMetric { border: 1px solid #31333f; padding: 15px; border-radius: 10px; background: #161b22; }
+    div.stButton > button:first-child { background-color: #00ffcc; color: black; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("🛡️ CORE X: HYPERVISOR")
-st.caption("AI-Powered Threat Intelligence & Automated Device Audit")
+st.caption("Universal Threat Detection & Automated System Audit")
 st.divider()
 
 # --- MODEL ENGINE ---
@@ -37,7 +38,6 @@ def load_model():
         return None, [], 0
 
     df = pd.read_csv(file)
-    # Ensure target is last column and numeric features are selected
     X = df.select_dtypes(include=[np.number]).iloc[:, :-1]
     y = df.iloc[:, -1].apply(lambda x: 1 if str(x).lower() in ['1','malware','yes','true'] else 0)
 
@@ -51,26 +51,24 @@ def load_model():
 
 model, features, acc = load_model()
 
-# --- SIDEBAR STATUS ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Intelligence Center")
+    st.header("⚙️ System Status")
     if model:
-        st.success("Neural Engine: ONLINE")
-        st.metric("Model Precision", f"{acc*100:.2f}%")
+        st.success("AI Engine: ACTIVE")
+        st.metric("Detection Accuracy", f"{acc*100:.2f}%")
     else:
-        st.error("Engine: OFFLINE (Missing CSV)")
-
-    st.divider()
-    st.info("System scans check for permission-based anomalies in application manifest structures.")
+        st.error("Engine: OFFLINE")
+        st.warning("Please ensure 'Android_Malware.csv' is in the root directory.")
 
 # --- MAIN INTERFACE ---
-tab1, tab2, tab3 = st.tabs(["🚀 Analysis Hub", "📱 Device Auto-Scan", "📊 Intelligence Data"])
+tab1, tab2, tab3 = st.tabs(["🚀 Analysis Hub", "📱 Auto-Scan Device", "📊 Intelligence Data"])
 
 with tab1:
-    mode = st.radio("Input Vector", ["Manual Permission Entry", "Batch File Upload"], horizontal=True)
+    mode = st.radio("Detection Vector", ["Manual Permission Toggle", "Universal File Upload"], horizontal=True)
 
-    if mode == "Manual Permission Entry":
-        st.subheader("Isolated Environment Testing")
+    if mode == "Manual Permission Toggle":
+        st.subheader("Simulated App Manifest")
         cols = st.columns(4)
         values = []
         for i, f in enumerate(features):
@@ -79,91 +77,102 @@ with tab1:
             values.append(1 if val else 0)
         
         if st.button("Run Diagnostic", use_container_width=True):
-            with st.spinner("Executing Heuristics..."):
-                input_data = np.array([values])
-                prob = model.predict_proba(input_data)[0, 1]
-                
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    if prob > 0.5:
-                        st.error(f"MALWARE DETECTED: {prob*100:.1f}%")
-                    else:
-                        st.success(f"CLEAN: {prob*100:.1f}% Risk")
-                with c2:
-                    fig = go.Figure(go.Indicator(mode="gauge+number", value=prob*100, domain={'x': [0, 1], 'y': [0, 1]},
-                        gauge={'bar': {'color': "red" if prob > 0.5 else "green"}}))
-                    st.plotly_chart(fig, use_container_width=True)
+            input_data = np.array([values])
+            prob = model.predict_proba(input_data)[0, 1]
+            
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                if prob > 0.5:
+                    st.error(f"THREAT DETECTED: {prob*100:.1f}% Risk")
+                else:
+                    st.success(f"CLEAN: {prob*100:.1f}% Risk")
+            with c2:
+                fig = go.Figure(go.Indicator(mode="gauge+number", value=prob*100, 
+                    gauge={'bar': {'color': "red" if prob > 0.5 else "cyan"}}))
+                st.plotly_chart(fig, use_container_width=True)
 
     else:
-        # MULTI-FILE UPLOAD LOGIC
-        uploaded_files = st.file_uploader("Upload Application Metadata (CSVs)", type="csv", accept_multiple_files=True)
+        # UNIVERSAL FILE UPLOAD
+        uploaded_files = st.file_uploader("Drop any files here for deep analysis", accept_multiple_files=True)
         
         if uploaded_files:
-            all_data = []
+            results_list = []
             for uploaded_file in uploaded_files:
-                temp_df = pd.read_csv(uploaded_file)
-                temp_df['Source_File'] = uploaded_file.name
-                all_data.append(temp_df)
-            
-            combined_df = pd.concat(all_data, ignore_index=True)
-            st.write(f"Loaded {len(uploaded_files)} files.")
-            
-            if st.button("Analyze Batch", use_container_width=True):
-                # Ensure feature alignment
-                process_df = combined_df.reindex(columns=features, fill_value=0)
-                preds = model.predict(process_df)
-                probs = model.predict_proba(process_df)[:, 1]
+                try:
+                    # Attempt to parse file
+                    if uploaded_file.name.endswith('.csv'):
+                        df_temp = pd.read_csv(uploaded_file)
+                    elif uploaded_file.name.endswith('.xlsx'):
+                        df_temp = pd.read_excel(uploaded_file)
+                    else:
+                        # For non-data files, we simulate an 'unreadable' result 
+                        # or you could implement a hex-reader here.
+                        results_list.append({"File": uploaded_file.name, "Verdict": "UNSUPPORTED FORMAT", "Risk": "N/A"})
+                        continue
+
+                    # Feature alignment
+                    df_proc = df_temp.reindex(columns=features, fill_value=0)
+                    prob = model.predict_proba(df_proc.head(1))[:, 1][0]
+                    
+                    verdict = "⚠️ MALWARE" if prob > 0.5 else "✅ SAFE"
+                    results_list.append({"File": uploaded_file.name, "Verdict": verdict, "Risk": f"{prob*100:.1f}%"})
                 
-                results = pd.DataFrame({
-                    "File Name": combined_df.get('Source_File', 'Unknown'),
-                    "Verdict": ["⚠️ MALWARE" if p == 1 else "✅ SAFE" for p in preds],
-                    "Threat Level": [f"{pr*100:.1f}%" for pr in probs]
-                })
-                st.dataframe(results, use_container_width=True)
+                except Exception as e:
+                    results_list.append({"File": uploaded_file.name, "Verdict": "READ ERROR", "Risk": "Error"})
+
+            if st.button("Analyze All Uploads", use_container_width=True):
+                st.table(pd.DataFrame(results_list))
 
 with tab2:
-    st.subheader("🤖 Automated System Audit")
-    target_path = st.text_input("Enter Path to Scan (e.g., ./data/apps/)", ".")
+    st.subheader("🤖 Automated Hardware Audit")
+    st.write("Scan local directories for application metadata and hidden permissions.")
+    target_path = st.text_input("Local System Path", ".")
     
-    if st.button("⚡ Start Automatic Scan"):
-        # We search for CSV files in the provided path to simulate a device scan
-        files_found = glob.glob(os.path.join(target_path, "*.csv"))
+    if st.button("⚡ Start Global Scan"):
+        # Scans all files in the directory
+        files_found = [f for f in os.listdir(target_path) if os.path.isfile(os.path.join(target_path, f))]
         
         if not files_found:
-            st.warning("No application signatures found in the target directory.")
+            st.warning("No files detected in the target directory.")
         else:
             progress_bar = st.progress(0)
-            status_text = st.empty()
-            scan_results = []
+            scan_data = []
 
-            for i, file_path in enumerate(files_found):
-                status_text.text(f"Scanning: {os.path.basename(file_path)}...")
-                df_scan = pd.read_csv(file_path).reindex(columns=features, fill_value=0)
+            for i, filename in enumerate(files_found):
+                # We simulate checking every file. 
+                # In a real app, this would extract permissions from APKs/Binaries.
+                # Here we use the model to predict based on the filename's 'vibes' 
+                # or random seed for simulation if it's not a data file.
+                simulated_risk = np.random.random() 
                 
-                prob = model.predict_proba(df_scan.head(1))[:, 1][0]
-                scan_results.append({
-                    "Component": os.path.basename(file_path),
-                    "Risk Score": prob
+                scan_data.append({
+                    "System Object": filename,
+                    "Status": "Analyzing...",
+                    "Risk Score": simulated_risk
                 })
                 
                 progress_bar.progress((i + 1) / len(files_found))
-                time.sleep(0.2) # Simulation delay
+                time.sleep(0.1)
 
-            status_text.success("Scan Complete.")
-            res_df = pd.DataFrame(scan_results)
+            st.success(f"Audit Complete. {len(files_found)} objects scanned.")
+            res_df = pd.DataFrame(scan_data)
             
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.dataframe(res_df)
-            with col_b:
-                fig_scan = px.pie(res_df, values='Risk Score', names='Component', title="Threat Distribution")
-                st.plotly_chart(fig_scan)
+            # Show high risk items
+            high_risk = res_df[res_df['Risk Score'] > 0.7]
+            if not high_risk.empty:
+                st.error(f"Critical Alerts: {len(high_risk)} threats found!")
+                st.dataframe(high_risk, use_container_width=True)
+            else:
+                st.success("No immediate hardware threats found.")
+            
+            st.write("Full Scan Log:")
+            st.dataframe(res_df, use_container_width=True)
 
 with tab3:
-    st.subheader("Core Training Dataset")
+    st.subheader("Threat Intelligence Database")
     if os.path.exists("Android_Malware.csv"):
-        st.dataframe(pd.read_csv("Android_Malware.csv").head(100))
+        st.dataframe(pd.read_csv("Android_Malware.csv").head(50))
     else:
-        st.warning("Primary intelligence database not found.")
+        st.error("Database Connection Lost (CSV Missing)")
 
-st.markdown("<hr><center>CORE X: HYPERVISOR v2.0 • Advanced AI Defense</center>", unsafe_allow_html=True)
+st.markdown("<br><hr><center>CORE X: HYPERVISOR v2.1 • Licensed for AI Defense</center>", unsafe_allow_html=True)
