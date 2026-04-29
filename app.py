@@ -1,220 +1,217 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
 import plotly.graph_objects as go
+import plotly.express as px
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import os
 import time
 
-# ----------------------------
+# ─────────────────────────────────────────
 # PAGE CONFIG
-# ----------------------------
-st.set_page_config(page_title="TECH TITANS | HYPERVISOR", layout="wide", page_icon="🛡️")
+# ─────────────────────────────────────────
+st.set_page_config(
+    page_title="CORE X: HYPERVISOR",
+    layout="wide",
+    page_icon="🛡️"
+)
 
-# ----------------------------
-# CUSTOM UI
-# ----------------------------
-st.markdown("""
-<style>
-.stApp { 
-    background: radial-gradient(circle, #1e2229, #0c1014); 
-    color: #e1e1e1;
-}
-[data-testid="stMetricValue"] { 
-    color: #00f2ff !important; 
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ----------------------------
-# HEADER
-# ----------------------------
 st.title("🛡️ CORE X: HYPERVISOR")
-st.caption("AI Malware Detection Engine · TECH TITANS")
+st.caption("AI Malware Detection & Threat Intelligence System")
+st.divider()
 
-# ----------------------------
-# LOAD & TRAIN MODEL
-# ----------------------------
+# ─────────────────────────────────────────
+# LOAD / TRAIN MODEL
+# ─────────────────────────────────────────
 @st.cache_resource
 def load_model():
-    if os.path.exists("Android_Malware.csv"):
-        df = pd.read_csv("Android_Malware.csv")
+    file = "Android_Malware.csv"
 
-        X = df.select_dtypes(include=[np.number]).iloc[:, :-1]
-        y = df.iloc[:, -1]
+    if not os.path.exists(file):
+        return None, [], 0
 
-        y = y.apply(lambda x: 1 if str(x).lower() in ["1", "malware"] else 0)
+    df = pd.read_csv(file)
 
-        features = X.columns
+    X = df.select_dtypes(include=[np.number]).iloc[:, :-1]
+    y = df.iloc[:, -1]
 
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
+    y = y.apply(lambda x: 1 if str(x).lower() in ['1','malware','yes','true'] else 0)
 
-        model = XGBClassifier(
-            n_estimators=100,
-            max_depth=6,
-            learning_rate=0.05,
-            eval_metric="logloss"
-        )
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
 
-        model.fit(X_train, y_train)
+    model = XGBClassifier(
+        n_estimators=120,
+        max_depth=6,
+        learning_rate=0.05,
+        eval_metric='logloss'
+    )
 
-        acc = accuracy_score(y_test, model.predict(X_test))
+    model.fit(X_train, y_train)
 
-        return model, features, acc
+    acc = accuracy_score(y_test, model.predict(X_test))
 
-    return None, [], 0
-
+    return model, X.columns.tolist(), acc
 
 model, features, acc = load_model()
 
-# ----------------------------
+# ─────────────────────────────────────────
 # SIDEBAR
-# ----------------------------
+# ─────────────────────────────────────────
 with st.sidebar:
-    st.header("⚙️ SYSTEM")
-    if model:
-        st.success("MODEL ACTIVE")
-        st.metric("Accuracy", f"{acc*100:.2f}%")
+    st.header("⚙️ System Status")
+
+    if model is None:
+        st.error("Dataset missing")
+        st.info("Upload Android_Malware.csv")
     else:
-        st.error("NO DATASET FOUND")
+        st.success("Model Ready")
+        st.metric("Accuracy", f"{acc*100:.2f}%")
 
-# ----------------------------
+# ─────────────────────────────────────────
 # TABS
-# ----------------------------
-tab1, tab2 = st.tabs(["🔍 Manual Scan", "📂 CSV Upload"])
+# ─────────────────────────────────────────
+tab1, tab2 = st.tabs(["🔍 Scan App", "📊 Dataset"])
 
-# ==================================================
-# 🔍 MANUAL MODE
-# ==================================================
+# ─────────────────────────────────────────
+# TAB 1
+# ─────────────────────────────────────────
 with tab1:
 
-    st.subheader("Select Permissions")
+    mode = st.radio("Select Mode", ["Manual Input", "Upload CSV"], horizontal=True)
 
-    cols = st.columns(4)
-    selected = []
+    input_data = None
 
-    for i, f in enumerate(features):
-        val = cols[i % 4].checkbox(f.replace("android.permission.", ""))
-        selected.append(1 if val else 0)
+    # ---------- MANUAL ----------
+    if mode == "Manual Input":
+        st.subheader("Select Permissions")
 
-    if st.button("🚀 Scan"):
+        cols = st.columns(4)
+        values = []
 
-        if not model:
-            st.error("Model not loaded")
-        else:
-            input_data = np.array([selected])
+        for i, f in enumerate(features):
+            label = f.replace("android.permission.", "").replace("_", " ")
 
-            with st.spinner("Analyzing..."):
-                time.sleep(1)
+            val = cols[i % 4].checkbox(
+                label,
+                key=f"perm_{i}"   # ✅ FIXED (no duplicate error)
+            )
 
-                pred = model.predict(input_data)[0]
-                prob = model.predict_proba(input_data)[0][1]
+            values.append(1 if val else 0)
 
-            col1, col2, col3 = st.columns(3)
+        input_data = np.array([values])
 
-            with col1:
-                if pred == 1:
-                    st.error("🚨 Malware Detected")
-                else:
-                    st.success("✅ Safe App")
+    # ---------- CSV ----------
+    else:
+        file = st.file_uploader("Upload CSV", type="csv")
 
-            with col2:
-                st.metric("Malware Probability", f"{prob*100:.2f}%")
+        if file:
+            df = pd.read_csv(file)
+            st.dataframe(df.head())
 
-            with col3:
-                if prob > 0.7:
-                    st.error("HIGH RISK")
-                elif prob > 0.4:
-                    st.warning("MEDIUM RISK")
-                else:
-                    st.success("LOW RISK")
-
-            # ----------------------------
-            # GAUGE
-            # ----------------------------
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=prob*100,
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': "cyan"}
-                }
-            ))
-            st.plotly_chart(fig, use_container_width=True)
-
-            # ----------------------------
-            # EXPLAINABILITY
-            # ----------------------------
-            st.subheader("🧠 Explainability")
-
-            try:
-                importances = model.feature_importances_
-
-                imp_df = pd.DataFrame({
-                    "Feature": features,
-                    "Importance": importances
-                }).sort_values(by="Importance", ascending=False).head(10)
-
-                fig2 = px.bar(
-                    imp_df,
-                    x="Importance",
-                    y="Feature",
-                    orientation="h",
-                    title="Top Risk Contributors"
-                )
-
-                st.plotly_chart(fig2, use_container_width=True)
-
-            except:
-                st.info("Explainability not available")
-
-# ==================================================
-# 📂 CSV MODE
-# ==================================================
-with tab2:
-
-    st.subheader("Upload CSV")
-
-    file = st.file_uploader("Upload file", type=["csv"])
-
-    if file:
-
-        df = pd.read_csv(file)
-        st.dataframe(df.head())
-
-        if model:
-
-            # align columns
+            # Align columns
             for col in features:
                 if col not in df.columns:
                     df[col] = 0
 
-            df = df[features]
+            input_data = df[features].values
 
-            preds = model.predict(df)
-            probs = model.predict_proba(df)[:, 1]
+    # ---------- RUN ----------
+    if input_data is not None and st.button("🚀 Analyze", use_container_width=True):
 
-            result = pd.DataFrame({
-                "Prediction": ["Malware" if p==1 else "Safe" for p in preds],
-                "Probability": probs
-            })
-
-            st.subheader("Results")
-            st.dataframe(result)
-
-            fig = px.histogram(result, x="Probability", title="Risk Distribution")
-            st.plotly_chart(fig, use_container_width=True)
-
+        if model is None:
+            st.error("Model not available")
         else:
-            st.error("Model not loaded")
+            with st.spinner("Analyzing..."):
+                time.sleep(1)
 
-# ----------------------------
+                preds = model.predict(input_data)
+                probs = model.predict_proba(input_data)[:, 1]
+
+            # SINGLE RESULT
+            if len(preds) == 1:
+                p = preds[0]
+                prob = probs[0]
+
+                col1, col2 = st.columns([1, 2])
+
+                with col1:
+                    if p == 1:
+                        st.error("🚨 Malware Detected")
+                    else:
+                        st.success("✅ Safe App")
+
+                    st.metric("Confidence", f"{prob*100:.2f}%")
+
+                    if prob > 0.7:
+                        st.error("HIGH RISK")
+                    elif prob > 0.4:
+                        st.warning("MEDIUM RISK")
+                    else:
+                        st.success("LOW RISK")
+
+                with col2:
+                    fig = go.Figure(go.Indicator(
+                        mode="gauge+number",
+                        value=prob*100,
+                        title={'text': "Risk Level"},
+                        gauge={'axis': {'range': [0, 100]}}
+                    ))
+                    st.plotly_chart(fig, use_container_width=True)
+
+                # FEATURE IMPORTANCE
+                if hasattr(model, "feature_importances_"):
+                    st.subheader("🔍 Top Risk Factors")
+
+                    imp = pd.DataFrame({
+                        "Feature": features,
+                        "Importance": model.feature_importances_
+                    }).sort_values(by="Importance", ascending=False).head(10)
+
+                    fig2 = px.bar(
+                        imp,
+                        x="Importance",
+                        y="Feature",
+                        orientation='h',
+                        title="Feature Importance"
+                    )
+
+                    st.plotly_chart(fig2, use_container_width=True)
+
+            # BATCH RESULT
+            else:
+                st.subheader("Batch Results")
+
+                result_df = pd.DataFrame({
+                    "Sample": range(len(preds)),
+                    "Prediction": ["Malware" if x == 1 else "Safe" for x in preds],
+                    "Probability": probs
+                })
+
+                st.dataframe(result_df)
+
+                fig = px.histogram(result_df, x="Probability", title="Risk Distribution")
+                st.plotly_chart(fig, use_container_width=True)
+
+# ─────────────────────────────────────────
+# TAB 2
+# ─────────────────────────────────────────
+with tab2:
+    st.subheader("Dataset Preview")
+
+    if os.path.exists("Android_Malware.csv"):
+        df = pd.read_csv("Android_Malware.csv")
+        st.dataframe(df.head(50))
+    else:
+        st.warning("No dataset found")
+
+# ─────────────────────────────────────────
 # FOOTER
-# ----------------------------
-st.markdown("---")
-st.caption("TECH TITANS · CORE X HYPERVISOR · 2026")
+# ─────────────────────────────────────────
+st.markdown("""
+<hr>
+<center>CORE X: HYPERVISOR • AI Malware Detection System</center>
+""", unsafe_allow_html=True)
