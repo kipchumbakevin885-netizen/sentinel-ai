@@ -10,14 +10,14 @@ import os
 import time
 import re
 
-
+# --- SYSTEM CONFIGURATION ---
 st.set_page_config(
     page_title="CORE X: HYPERVISOR PRO",
     layout="wide",
     page_icon="🛡️"
 )
 
-
+# Cyber-Security UI Styling
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #e0e0e0; }
@@ -35,10 +35,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🛡️ CORE X: HYPERVISOR PRO")
-st.caption("AI Malware Detection • Universal Binary Analysis • Full-System Audit")
+st.caption("AI Malware Detection • Universal Binary Analysis • Autonomous System Audit")
 st.divider()
 
-
+# --- AI CORE ENGINE ---
 @st.cache_resource
 def load_engine():
     dataset_path = "Android_Malware.csv"
@@ -58,7 +58,7 @@ def load_engine():
 
 model, features, acc = load_engine()
 
-
+# --- UNIVERSAL FEATURE EXTRACTOR ---
 def extract_features_universal(file_path_or_obj, feature_list, is_path=False):
     """Scan file bytes for permission strings to match dataset features."""
     try:
@@ -73,7 +73,7 @@ def extract_features_universal(file_path_or_obj, feature_list, is_path=False):
     except:
         return [0] * len(feature_list)
 
-
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("⚡ System Vitals")
     if model:
@@ -86,7 +86,6 @@ with st.sidebar:
     st.subheader("Global Sensitivity")
     sensitivity = st.slider("Detection Threshold", 0.0, 1.0, 0.5)
 
-
 if model is None:
     st.error("Engine failure. Ensure 'Android_Malware.csv' is present.")
     st.stop()
@@ -98,7 +97,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📝 Export Reports"
 ])
 
-
+# --- TAB 1: DEEP SCAN (INTACT) ---
 with tab1:
     st.subheader("Universal File Analysis")
     uploaded_files = st.file_uploader("Drop APKs, EXEs, Binaries, or CSVs", accept_multiple_files=True)
@@ -126,7 +125,7 @@ with tab1:
                          color_discrete_map={'CRITICAL':'#ff4b4b', 'ELEVATED':'#ffa500', 'CLEAN':'#00cc96'})
             st.plotly_chart(fig, use_container_width=True)
 
-
+# --- TAB 2: MANUAL SCAN (INTACT) ---
 with tab2:
     st.subheader("Heuristic Manifest Entry")
     search_query = st.text_input("🔍 Search specific permissions to toggle").upper()
@@ -150,52 +149,67 @@ with tab2:
         ))
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-
+# --- TAB 3: AUTONOMOUS DEVICE SCAN (ZERO INPUT) ---
 with tab3:
-    st.subheader("🖥️ Full System Auto-Scan")
-    root_dir = st.text_input("Define Scan Path", "C:/" if os.name == 'nt' else "/")
+    st.subheader("🖥️ Autonomous System Audit")
+    st.info("ONE-CLICK ENGAGEMENT: System will auto-detect OS and scan core directories.")
     
-    if st.button("⚡ INITIALIZE GLOBAL DEVICE SCAN"):
+    if st.button("🚀 INITIATE FULL AUTO-SCAN"):
         audit_results = []
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        files_to_scan = []
-        for root, dirs, files in os.walk(root_dir):
-            for name in files:
-                files_to_scan.append(os.path.join(root, name))
-                if len(files_to_scan) > 1000: break # Threshold for web performance
-            if len(files_to_scan) > 1000: break
-
-        for i, path in enumerate(files_to_scan):
-            status_text.text(f"Scanning: {os.path.basename(path)}")
-            vector = extract_features_universal(path, features, is_path=True)
-            prob = model.predict_proba([vector])[0, 1]
-            
-            if prob > sensitivity:
-                audit_results.append({
-                    "Path": path,
-                    "Risk Score": f"{prob*100:.1f}%",
-                    "Verdict": "⚠️ THREAT"
-                })
-            progress_bar.progress((i + 1) / len(files_to_scan))
+        # Auto-Detection Logic
+        default_path = "C:/" if os.name == 'nt' else "/"
         
-        status_text.text("Scan Complete.")
+        status_text.text(f"Targeting Root: {default_path} | Scanning binaries...")
+        files_to_scan = []
+        
+        # Discover files automatically
+        for root, dirs, files in os.walk(default_path):
+            for name in files:
+                if name.lower().endswith(('.exe', '.apk', '.bin', '.dat', '.sys', '.dll')):
+                    files_to_scan.append(os.path.join(root, name))
+                if len(files_to_scan) > 1500: break 
+            if len(files_to_scan) > 1500: break
+
+        # Analysis Loop
+        total_discovered = len(files_to_scan)
+        for i, path in enumerate(files_to_scan):
+            try:
+                status_text.text(f"Analyzing {i+1}/{total_discovered}: {os.path.basename(path)}")
+                vector = extract_features_universal(path, features, is_path=True)
+                prob = model.predict_proba([vector])[0, 1]
+                
+                if prob > sensitivity:
+                    audit_results.append({
+                        "Time": time.strftime("%H:%M:%S"),
+                        "Path": path,
+                        "Risk": f"{prob*100:.1f}%",
+                        "Verdict": "⚠️ THREAT"
+                    })
+                progress_bar.progress((i + 1) / total_discovered)
+            except:
+                continue
+        
+        status_text.text("✅ Autonomous Audit Complete.")
         if audit_results:
-            st.error(f"DANGER: {len(audit_results)} suspicious files found on system.")
-            st.dataframe(pd.DataFrame(audit_results), use_container_width=True)
+            st.error(f"SECURITY ALERT: {len(audit_results)} objects flagged.")
+            report_df = pd.DataFrame(audit_results)
+            st.dataframe(report_df, use_container_width=True)
+            st.session_state['last_scan'] = report_df
         else:
-            st.success("System integrity verified. No immediate threats found.")
+            st.success("INTEGRITY VERIFIED: No malicious patterns found in the sampled system files.")
 
-
+# --- TAB 4: EXPORT (INTACT) ---
 with tab4:
     st.subheader("Final Threat Archiving")
     if 'last_scan' in st.session_state:
-        st.write("Last Deep Scan Session Report:")
+        st.write("Last Session Report Data:")
         st.download_button("📥 DOWNLOAD REPORT (CSV)", 
                            data=st.session_state['last_scan'].to_csv(index=False).encode('utf-8'), 
                            file_name="Hypervisor_Report.csv", mime="text/csv")
     else:
-        st.info("Perform a 'Deep Scan' or 'Auto Scan' to generate export data.")
+        st.info("Perform a scan to generate export data.")
 
 st.markdown("<br><hr><center>CORE X: HYPERVISOR PRO • 2026 AI DEFENSE UNIT</center>", unsafe_allow_html=True)
