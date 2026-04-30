@@ -10,7 +10,7 @@ import os
 import time
 import re
 
-# --- SYSTEM CONFIGURATION ---
+#SYSTEM CONFIGURATION ---
 st.set_page_config(
     page_title="CORE X: HYPERVISOR PRO",
     layout="wide",
@@ -149,7 +149,7 @@ with tab2:
         ))
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-# --- TAB 3: AUTONOMOUS DEVICE SCAN (ZERO INPUT) ---
+# --- : AUTONOMOUS DEVICE SCAN (ZERO INPUT) ---
 with tab3:
     st.subheader("🖥️ Autonomous System Audit")
     st.info("ONE-CLICK ENGAGEMENT: System will auto-detect OS and scan core directories.")
@@ -201,7 +201,7 @@ with tab3:
         else:
             st.success("INTEGRITY VERIFIED: No malicious patterns found in the sampled system files.")
 
-# --- TAB 4: EXPORT (INTACT) ---
+# --- : EXPORT (INTACT) ---
 with tab4:
     st.subheader("Final Threat Archiving")
     if 'last_scan' in st.session_state:
